@@ -54,6 +54,7 @@ def create_tables(db: sqlite3.Connection) -> None:
             email TEXT NOT NULL UNIQUE,
             password_hash TEXT NOT NULL,
             name TEXT NOT NULL,
+            is_guest INTEGER NOT NULL DEFAULT 0,
             created_at TEXT NOT NULL
         )
         """
@@ -117,18 +118,29 @@ def create_tables(db: sqlite3.Connection) -> None:
     db.execute(
         "CREATE INDEX IF NOT EXISTS idx_publication_items_publication ON publication_items(publication_id, sort_order)"
     )
+    ensure_user_columns(db)
+
+
+def ensure_user_columns(db: sqlite3.Connection) -> None:
+    columns = {
+        str(row["name"])
+        for row in db.execute("PRAGMA table_info(users)").fetchall()
+    }
+    if "is_guest" not in columns:
+        db.execute("ALTER TABLE users ADD COLUMN is_guest INTEGER NOT NULL DEFAULT 0")
 
 
 def seed_default_user(db: sqlite3.Connection) -> None:
     db.execute(
         """
-        INSERT OR IGNORE INTO users (email, password_hash, name, created_at)
-        VALUES (?, ?, ?, ?)
+        INSERT OR IGNORE INTO users (email, password_hash, name, is_guest, created_at)
+        VALUES (?, ?, ?, ?, ?)
         """,
         (
             DEFAULT_USER_EMAIL,
             generate_password_hash(DEFAULT_USER_PASSWORD),
             DEFAULT_USER_NAME,
+            0,
             to_iso(utcnow()),
         ),
     )
@@ -138,13 +150,14 @@ def seed_default_user(db: sqlite3.Connection) -> None:
 def seed_feed_author(db: sqlite3.Connection) -> None:
     db.execute(
         """
-        INSERT OR IGNORE INTO users (email, password_hash, name, created_at)
-        VALUES (?, ?, ?, ?)
+        INSERT OR IGNORE INTO users (email, password_hash, name, is_guest, created_at)
+        VALUES (?, ?, ?, ?, ?)
         """,
         (
             STYLE_AUTHOR_EMAIL,
             generate_password_hash(DEFAULT_USER_PASSWORD),
             STYLE_AUTHOR_NAME,
+            0,
             to_iso(utcnow()),
         ),
     )

@@ -8,6 +8,7 @@ from typing import Any
 
 from flask import current_app, request
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
+from werkzeug.security import generate_password_hash
 
 from .config import ACCESS_TOKEN_SALT, ACCESS_TOKEN_TTL_SECONDS, REFRESH_TOKEN_TTL_DAYS
 from .db import get_db
@@ -29,6 +30,7 @@ def create_access_token(user: sqlite3.Row) -> str:
             "sub": user["id"],
             "email": user["email"],
             "name": user["name"],
+            "is_guest": bool(user["is_guest"]),
         },
         salt=ACCESS_TOKEN_SALT,
     )
@@ -68,16 +70,48 @@ def revoke_refresh_token(raw_token: str) -> None:
 
 def get_user_by_email(email: str) -> sqlite3.Row | None:
     return get_db().execute(
-        "SELECT id, email, password_hash, name FROM users WHERE email = ?",
+        "SELECT id, email, password_hash, name, is_guest FROM users WHERE email = ?",
         (email.lower().strip(),),
     ).fetchone()
 
 
 def get_user_by_id(user_id: int) -> sqlite3.Row | None:
     return get_db().execute(
-        "SELECT id, email, password_hash, name FROM users WHERE id = ?",
+        "SELECT id, email, password_hash, name, is_guest FROM users WHERE id = ?",
         (user_id,),
     ).fetchone()
+
+
+def create_user(email: str, password: str, name: str, is_guest: bool = False) -> sqlite3.Row:
+    db = get_db()
+    cursor = db.execute(
+        """
+        INSERT INTO users (email, password_hash, name, is_guest, created_at)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (
+            email.lower().strip(),
+            generate_password_hash(password),
+            name.strip(),
+            1 if is_guest else 0,
+            to_iso(utcnow()),
+        ),
+    )
+    db.commit()
+    user = get_user_by_id(int(cursor.lastrowid))
+    if user is None:
+        raise RuntimeError("User was not found after creation.")
+    return user
+
+
+def create_guest_user() -> sqlite3.Row:
+    suffix = secrets.token_hex(4)
+    return create_user(
+        email=f"guest-{suffix}@things.local",
+        password=secrets.token_urlsafe(24),
+        name=f"Гость {suffix.upper()}",
+        is_guest=True,
+    )
 
 
 def validate_refresh_token(raw_token: str) -> sqlite3.Row | None:
@@ -109,6 +143,7 @@ def build_auth_payload(user: sqlite3.Row, refresh_token: str) -> dict[str, Any]:
             "id": user["id"],
             "email": user["email"],
             "name": user["name"],
+            "is_guest": bool(user["is_guest"]),
         },
     }
 
