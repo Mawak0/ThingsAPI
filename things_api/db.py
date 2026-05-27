@@ -129,6 +129,19 @@ def create_tables(db: sqlite3.Connection) -> None:
     )
     db.execute(
         """
+        CREATE TABLE IF NOT EXISTS push_tokens (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            token TEXT NOT NULL UNIQUE,
+            platform TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY(user_id) REFERENCES users(id)
+        )
+        """
+    )
+    db.execute(
+        """
         CREATE TABLE IF NOT EXISTS wardrobe_clothes (
             user_id INTEGER NOT NULL,
             local_id TEXT NOT NULL,
@@ -198,6 +211,7 @@ def create_tables(db: sqlite3.Connection) -> None:
         """
     )
     db.execute("CREATE INDEX IF NOT EXISTS idx_publications_created ON publications(created_at)")
+    db.execute("CREATE INDEX IF NOT EXISTS idx_push_tokens_user ON push_tokens(user_id)")
     db.execute(
         "CREATE INDEX IF NOT EXISTS idx_publication_items_publication ON publication_items(publication_id, sort_order)"
     )

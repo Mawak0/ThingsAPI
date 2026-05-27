@@ -10,6 +10,7 @@ from ..feed_service import (
     publication_row,
     trim_text,
 )
+from ..push_service import send_feed_publication_push
 from ..time_utils import to_iso, utcnow
 
 feed_bp = Blueprint("feed", __name__)
@@ -174,6 +175,13 @@ def publish_outfit():
     row = publication_row(publication_id)
     if row is None:
         return jsonify({"error": "Публикация не найдена после сохранения."}), 500
+
+    send_feed_publication_push(
+        int(current_user["id"]),
+        str(current_user["name"]),
+        publication_id,
+        str(row["name"]),
+    )
 
     return jsonify(
         publication_payload(row, get_followed_author_ids(int(current_user["id"])), int(current_user["id"]))

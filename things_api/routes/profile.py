@@ -11,6 +11,7 @@ from ..auth_service import (
     update_user_avatar,
     user_payload,
 )
+from ..push_service import delete_push_token, normalize_push_token, save_push_token
 
 profile_bp = Blueprint("profile", __name__)
 
@@ -101,3 +102,36 @@ def delete_avatar():
         return jsonify({"error": "Пользователь не найден."}), 404
 
     return jsonify({"user": user_payload(updated_user)})
+
+
+@profile_bp.put("/users/me/push-token")
+def update_push_token():
+    user, error = current_user_or_error()
+    if error is not None:
+        return error
+
+    payload = request.get_json(silent=True) or {}
+    token = normalize_push_token(payload.get("token"))
+    platform = str(payload.get("platform") or "android").strip().lower()
+    if not token:
+        return jsonify({"error": "Push-токен обязателен."}), 400
+    if platform not in {"android", "ios"}:
+        return jsonify({"error": "Неизвестная платформа push-токена."}), 400
+
+    save_push_token(int(user["id"]), token, platform)
+    return jsonify({"ok": True})
+
+
+@profile_bp.delete("/users/me/push-token")
+def remove_push_token():
+    user, error = current_user_or_error()
+    if error is not None:
+        return error
+
+    payload = request.get_json(silent=True) or {}
+    token = normalize_push_token(payload.get("token"))
+    if not token:
+        return jsonify({"error": "Push-токен обязателен."}), 400
+
+    delete_push_token(int(user["id"]), token)
+    return jsonify({"ok": True})
