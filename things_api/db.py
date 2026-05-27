@@ -127,9 +127,88 @@ def create_tables(db: sqlite3.Connection) -> None:
         )
         """
     )
+    db.execute(
+        """
+        CREATE TABLE IF NOT EXISTS wardrobe_clothes (
+            user_id INTEGER NOT NULL,
+            local_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            category TEXT NOT NULL,
+            season TEXT NOT NULL,
+            color_scheme TEXT NOT NULL,
+            image_url TEXT,
+            emoji TEXT,
+            fill_color TEXT,
+            source TEXT NOT NULL,
+            is_in_wardrobe INTEGER NOT NULL DEFAULT 0,
+            is_deleted INTEGER NOT NULL DEFAULT 0,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            PRIMARY KEY(user_id, local_id),
+            FOREIGN KEY(user_id) REFERENCES users(id)
+        )
+        """
+    )
+    db.execute(
+        """
+        CREATE TABLE IF NOT EXISTS wardrobe_outfits (
+            user_id INTEGER NOT NULL,
+            local_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            style TEXT NOT NULL,
+            season TEXT NOT NULL,
+            color_scheme TEXT NOT NULL,
+            image_url TEXT NOT NULL,
+            views INTEGER NOT NULL DEFAULT 0,
+            is_deleted INTEGER NOT NULL DEFAULT 0,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            PRIMARY KEY(user_id, local_id),
+            FOREIGN KEY(user_id) REFERENCES users(id)
+        )
+        """
+    )
+    db.execute(
+        """
+        CREATE TABLE IF NOT EXISTS wardrobe_outfit_items (
+            user_id INTEGER NOT NULL,
+            local_id TEXT NOT NULL,
+            outfit_local_id TEXT NOT NULL,
+            clothing_local_id TEXT NOT NULL,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            PRIMARY KEY(user_id, local_id),
+            FOREIGN KEY(user_id) REFERENCES users(id)
+        )
+        """
+    )
+    db.execute(
+        """
+        CREATE TABLE IF NOT EXISTS wardrobe_settings (
+            user_id INTEGER PRIMARY KEY,
+            language TEXT NOT NULL,
+            theme TEXT NOT NULL,
+            notifications_enabled INTEGER NOT NULL DEFAULT 1,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY(user_id) REFERENCES users(id)
+        )
+        """
+    )
     db.execute("CREATE INDEX IF NOT EXISTS idx_publications_created ON publications(created_at)")
     db.execute(
         "CREATE INDEX IF NOT EXISTS idx_publication_items_publication ON publication_items(publication_id, sort_order)"
+    )
+    db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_wardrobe_clothes_user ON wardrobe_clothes(user_id, sort_order)"
+    )
+    db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_wardrobe_outfits_user ON wardrobe_outfits(user_id, sort_order)"
+    )
+    db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_wardrobe_outfit_items_user ON wardrobe_outfit_items(user_id, outfit_local_id, sort_order)"
     )
     ensure_user_columns(db)
 
