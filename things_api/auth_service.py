@@ -30,7 +30,6 @@ def create_access_token(user: sqlite3.Row) -> str:
             "sub": user["id"],
             "email": user["email"],
             "name": user["name"],
-            "is_guest": bool(user["is_guest"]),
         },
         salt=ACCESS_TOKEN_SALT,
     )
@@ -70,19 +69,27 @@ def revoke_refresh_token(raw_token: str) -> None:
 
 def get_user_by_email(email: str) -> sqlite3.Row | None:
     return get_db().execute(
-        "SELECT id, email, password_hash, name, is_guest FROM users WHERE email = ?",
+        """
+        SELECT id, email, password_hash, name, is_guest, avatar_data_url
+        FROM users
+        WHERE email = ?
+        """,
         (email.lower().strip(),),
     ).fetchone()
 
 
 def get_user_by_id(user_id: int) -> sqlite3.Row | None:
     return get_db().execute(
-        "SELECT id, email, password_hash, name, is_guest FROM users WHERE id = ?",
+        """
+        SELECT id, email, password_hash, name, is_guest, avatar_data_url
+        FROM users
+        WHERE id = ?
+        """,
         (user_id,),
     ).fetchone()
 
 
-def create_user(email: str, password: str, name: str, is_guest: bool = False) -> sqlite3.Row:
+def create_user(email: str, password: str, name: str) -> sqlite3.Row:
     db = get_db()
     cursor = db.execute(
         """
@@ -93,7 +100,7 @@ def create_user(email: str, password: str, name: str, is_guest: bool = False) ->
             email.lower().strip(),
             generate_password_hash(password),
             name.strip(),
-            1 if is_guest else 0,
+            0,
             to_iso(utcnow()),
         ),
     )
@@ -104,14 +111,41 @@ def create_user(email: str, password: str, name: str, is_guest: bool = False) ->
     return user
 
 
-def create_guest_user() -> sqlite3.Row:
-    suffix = secrets.token_hex(4)
-    return create_user(
-        email=f"guest-{suffix}@things.local",
-        password=secrets.token_urlsafe(24),
-        name=f"Гость {suffix.upper()}",
-        is_guest=True,
+def user_payload(user: sqlite3.Row) -> dict[str, Any]:
+    return {
+        "id": user["id"],
+        "email": user["email"],
+        "name": user["name"],
+        "avatar_data_url": user["avatar_data_url"],
+    }
+
+
+def update_user_avatar(user_id: int, avatar_data_url: str) -> sqlite3.Row | None:
+    db = get_db()
+    db.execute(
+        """
+        UPDATE users
+        SET avatar_data_url = ?
+        WHERE id = ?
+        """,
+        (avatar_data_url, user_id),
     )
+    db.commit()
+    return get_user_by_id(user_id)
+
+
+def delete_user_avatar(user_id: int) -> sqlite3.Row | None:
+    db = get_db()
+    db.execute(
+        """
+        UPDATE users
+        SET avatar_data_url = NULL
+        WHERE id = ?
+        """,
+        (user_id,),
+    )
+    db.commit()
+    return get_user_by_id(user_id)
 
 
 def validate_refresh_token(raw_token: str) -> sqlite3.Row | None:
@@ -139,12 +173,7 @@ def build_auth_payload(user: sqlite3.Row, refresh_token: str) -> dict[str, Any]:
         "refresh_token": refresh_token,
         "token_type": "Bearer",
         "expires_in": ACCESS_TOKEN_TTL_SECONDS,
-        "user": {
-            "id": user["id"],
-            "email": user["email"],
-            "name": user["name"],
-            "is_guest": bool(user["is_guest"]),
-        },
+        "user": user_payload(user),
     }
 
 

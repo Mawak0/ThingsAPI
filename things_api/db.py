@@ -55,6 +55,7 @@ def create_tables(db: sqlite3.Connection) -> None:
             password_hash TEXT NOT NULL,
             name TEXT NOT NULL,
             is_guest INTEGER NOT NULL DEFAULT 0,
+            avatar_data_url TEXT,
             created_at TEXT NOT NULL
         )
         """
@@ -128,6 +129,8 @@ def ensure_user_columns(db: sqlite3.Connection) -> None:
     }
     if "is_guest" not in columns:
         db.execute("ALTER TABLE users ADD COLUMN is_guest INTEGER NOT NULL DEFAULT 0")
+    if "avatar_data_url" not in columns:
+        db.execute("ALTER TABLE users ADD COLUMN avatar_data_url TEXT")
 
 
 def seed_default_user(db: sqlite3.Connection) -> None:

@@ -7,6 +7,7 @@ from .db import init_app as init_db_app
 from .db import init_db
 from .routes.auth import auth_bp
 from .routes.feed import feed_bp
+from .routes.profile import profile_bp
 
 
 def create_app() -> Flask:
@@ -16,6 +17,7 @@ def create_app() -> Flask:
     init_db_app(app)
     app.register_blueprint(auth_bp)
     app.register_blueprint(feed_bp)
+    app.register_blueprint(profile_bp)
 
     @app.get("/health")
     def health_check():

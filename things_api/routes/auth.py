@@ -7,7 +7,6 @@ from werkzeug.security import check_password_hash
 from ..auth_service import (
     build_auth_payload,
     create_refresh_token,
-    create_guest_user,
     create_user,
     get_user_by_email,
     get_user_by_id,
@@ -69,13 +68,6 @@ def register():
         password=credentials["password"],
         name=credentials["name"],
     )
-    refresh_token = create_refresh_token(int(user["id"]))
-    return jsonify(build_auth_payload(user, refresh_token)), 201
-
-
-@auth_bp.post("/auth/guest")
-def guest():
-    user = create_guest_user()
     refresh_token = create_refresh_token(int(user["id"]))
     return jsonify(build_auth_payload(user, refresh_token)), 201
 
