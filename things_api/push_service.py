@@ -10,6 +10,7 @@ from .db import get_db
 from .time_utils import to_iso, utcnow
 
 logger = logging.getLogger(__name__)
+FCM_MULTICAST_LIMIT = 500
 
 _firebase_initialized = False
 _firebase_unavailable_reason: str | None = None
@@ -59,6 +60,11 @@ def follower_tokens_for_author(author_id: int) -> list[str]:
     return [str(row["token"]) for row in rows if row["token"]]
 
 
+def token_batches(tokens: list[str], size: int = FCM_MULTICAST_LIMIT):
+    for index in range(0, len(tokens), size):
+        yield tokens[index : index + size]
+
+
 def firebase_is_ready() -> bool:
     global _firebase_initialized, _firebase_unavailable_reason
     if _firebase_initialized:
@@ -106,41 +112,42 @@ def send_feed_publication_push(author_id: int, author_name: str, publication_id:
 
     from firebase_admin import messaging
 
-    message = messaging.MulticastMessage(
-        tokens=tokens[:500],
-        notification=messaging.Notification(
-            title="Новый образ в ленте",
-            body=f"{author_name}: {publication_name}",
-        ),
-        data={
-            "type": "feed_publication",
-            "publication_id": str(publication_id),
-            "author_id": str(author_id),
-        },
-        android=messaging.AndroidConfig(
-            priority="high",
-            notification=messaging.AndroidNotification(
-                channel_id="feed",
-                click_action="OPEN_FEED",
-            ),
-        ),
-    )
-
-    try:
-        response = messaging.send_each_for_multicast(message)
-    except Exception as error:
-        logger.warning("Failed to send feed push: %s", error)
-        return
-
     invalid_tokens: list[str] = []
-    for index, item in enumerate(response.responses):
-        if item.success:
+    for batch in token_batches(tokens):
+        message = messaging.MulticastMessage(
+            tokens=batch,
+            notification=messaging.Notification(
+                title="Новый образ в ленте",
+                body=f"{author_name}: {publication_name}",
+            ),
+            data={
+                "type": "feed_publication",
+                "publication_id": str(publication_id),
+                "author_id": str(author_id),
+            },
+            android=messaging.AndroidConfig(
+                priority="high",
+                notification=messaging.AndroidNotification(
+                    channel_id="feed",
+                    click_action="OPEN_FEED",
+                ),
+            ),
+        )
+
+        try:
+            response = messaging.send_each_for_multicast(message)
+        except Exception as error:
+            logger.warning("Failed to send feed push: %s", error)
             continue
-        error = item.exception
-        error_code = getattr(error, "code", "")
-        if error_code in {"registration-token-not-registered", "invalid-argument"}:
-            invalid_tokens.append(tokens[index])
-        logger.warning("Feed push token failed: %s", error)
+
+        for index, item in enumerate(response.responses):
+            if item.success:
+                continue
+            error = item.exception
+            error_code = getattr(error, "code", "")
+            if error_code in {"registration-token-not-registered", "invalid-argument"}:
+                invalid_tokens.append(batch[index])
+            logger.warning("Feed push token failed: %s", error)
 
     if invalid_tokens:
         placeholders = ",".join("?" for _ in invalid_tokens)
