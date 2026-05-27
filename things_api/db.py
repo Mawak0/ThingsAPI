@@ -105,6 +105,18 @@ def create_tables(db: sqlite3.Connection) -> None:
     )
     db.execute(
         """
+        CREATE TABLE IF NOT EXISTS publication_views (
+            publication_id INTEGER NOT NULL,
+            viewer_id INTEGER NOT NULL,
+            created_at TEXT NOT NULL,
+            PRIMARY KEY(publication_id, viewer_id),
+            FOREIGN KEY(publication_id) REFERENCES publications(id),
+            FOREIGN KEY(viewer_id) REFERENCES users(id)
+        )
+        """
+    )
+    db.execute(
+        """
         CREATE TABLE IF NOT EXISTS follows (
             follower_id INTEGER NOT NULL,
             author_id INTEGER NOT NULL,

@@ -143,20 +143,14 @@ def publish_outfit():
 
 @feed_bp.post("/publications/<int:publication_id>/view")
 def count_publication_view(publication_id: int):
-    db = get_db()
-    db.execute(
-        """
-        UPDATE publications
-        SET views = views + 1
-        WHERE id = ?
-        """,
-        (publication_id,),
-    )
-    db.commit()
+    current_user = get_request_user()
+    if current_user is None:
+        return jsonify({"error": "Sign in to count publication views."}), 401
 
+    db = get_db()
     row = db.execute(
         """
-        SELECT views
+        SELECT id, author_id, views
         FROM publications
         WHERE id = ?
         """,
@@ -165,7 +159,32 @@ def count_publication_view(publication_id: int):
     if row is None:
         return jsonify({"error": "Публикация не найдена."}), 404
 
-    return jsonify({"views": int(row["views"])})
+    current_views = int(row["views"])
+    current_user_id = int(current_user["id"])
+    if int(row["author_id"]) == current_user_id:
+        return jsonify({"views": current_views, "counted": False})
+
+    cursor = db.execute(
+        """
+        INSERT OR IGNORE INTO publication_views (publication_id, viewer_id, created_at)
+        VALUES (?, ?, ?)
+        """,
+        (publication_id, current_user_id, to_iso(utcnow())),
+    )
+    counted = cursor.rowcount > 0
+    if counted:
+        db.execute(
+            """
+            UPDATE publications
+            SET views = views + 1
+            WHERE id = ?
+            """,
+            (publication_id,),
+        )
+        current_views += 1
+
+    db.commit()
+    return jsonify({"views": current_views, "counted": counted})
 
 
 @feed_bp.post("/authors/<int:author_id>/follow")
