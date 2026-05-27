@@ -20,8 +20,22 @@ def feed():
     current_user = get_request_user()
     current_user_id = int(current_user["id"]) if current_user is not None else None
     followed_author_ids = get_followed_author_ids(current_user_id)
-    rows = get_db().execute(
+
+    feed_filter = ""
+    params: tuple[int, ...] = ()
+    if current_user_id is not None:
+        feed_filter = """
+        WHERE publications.author_id = ?
+           OR publications.author_id IN (
+               SELECT author_id
+               FROM follows
+               WHERE follower_id = ?
+           )
         """
+        params = (current_user_id, current_user_id)
+
+    rows = get_db().execute(
+        f"""
         SELECT
             publications.id,
             publications.author_id,
@@ -35,9 +49,11 @@ def feed():
             users.name AS author_name
         FROM publications
         INNER JOIN users ON users.id = publications.author_id
+        {feed_filter}
         ORDER BY publications.created_at DESC, publications.id DESC
         LIMIT 40
-        """
+        """,
+        params,
     ).fetchall()
 
     return jsonify(
