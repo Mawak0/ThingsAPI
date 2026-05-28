@@ -67,6 +67,46 @@ def feed():
     )
 
 
+@feed_bp.get("/users/me/publications")
+def my_publications():
+    current_user = get_request_user()
+    if current_user is None:
+        return jsonify({"error": "Sign in to browse your publications."}), 401
+
+    current_user_id = int(current_user["id"])
+    followed_author_ids = get_followed_author_ids(current_user_id)
+    rows = get_db().execute(
+        """
+        SELECT
+            publications.id,
+            publications.author_id,
+            publications.source_outfit_id,
+            publications.name,
+            publications.style,
+            publications.season,
+            publications.color_scheme,
+            publications.views,
+            publications.created_at,
+            users.name AS author_name
+        FROM publications
+        INNER JOIN users ON users.id = publications.author_id
+        WHERE publications.author_id = ?
+        ORDER BY publications.created_at DESC, publications.id DESC
+        LIMIT 80
+        """,
+        (current_user_id,),
+    ).fetchall()
+
+    return jsonify(
+        {
+            "publications": [
+                publication_payload(row, followed_author_ids, current_user_id)
+                for row in rows
+            ]
+        }
+    )
+
+
 @feed_bp.get("/authors")
 def authors():
     current_user = get_request_user()
