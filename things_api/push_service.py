@@ -117,8 +117,8 @@ def send_feed_publication_push(author_id: int, author_name: str, publication_id:
         message = messaging.MulticastMessage(
             tokens=batch,
             notification=messaging.Notification(
-                title="Новый образ в ленте",
-                body=f"{author_name}: {publication_name}",
+                title="Новый пост в ленте",
+                body=f"{author_name} опубликовал(а): {publication_name}",
             ),
             data={
                 "type": "feed_publication",
